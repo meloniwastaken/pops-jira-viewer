@@ -1,7 +1,14 @@
 {
   "name": "@meloniwastaken/pops-jira-viewer",
   "version": "0.1.0",
-  "description": "Viewer degli sprint Jira del Portale Operatori Sanitari: aree, funzionalita' e task, con le azioni di tutti i giorni",
+  "description": "Viewer degli sprint Jira del Portale Operatori Sanitari: aree, funzionalità e task, con le azioni di tutti i giorni",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/meloniwastaken/pops-jira-viewer.git"
+  },
+  "homepage": "https://github.com/meloniwastaken/pops-jira-viewer#readme",
+  "bugs": "https://github.com/meloniwastaken/pops-jira-viewer/issues",
+  "author": "Marco Meloni",
   "type": "module",
   "bin": {
     "pops-jira-viewer": "./bin/cli.js"
