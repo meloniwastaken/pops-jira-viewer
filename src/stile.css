@@ -1,0 +1,92 @@
+:root {
+  --sfondo: #f4f6f9;
+  --carta: #ffffff;
+  --carta-2: #f8f9fb;
+  --linea: #e1e5eb;
+  --testo: #1b2230;
+  --tenue: #5e6a7b;
+  --accento: #0b5cad;
+  --accento-tenue: #e6effa;
+  --su-accento: #ffffff;
+  --nuovo: #5e6a7b;
+  --nuovo-bg: #eceff3;
+  --corso: #0b5cad;
+  --corso-bg: #e2edfa;
+  --fatto: #1d7a3d;
+  --fatto-bg: #e1f3e6;
+  --bug: #b42318;
+  --bug-bg: #fde8e6;
+  --avviso: #9a5b00;
+  --avviso-bg: #fff3dc;
+  --ombra: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.04);
+  --raggio: 8px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sfondo: #0e1116;
+    --carta: #161a21;
+    --carta-2: #1b2029;
+    --linea: #2a313c;
+    --testo: #e5e9ef;
+    --tenue: #9aa5b4;
+    --accento: #5ea3ef;
+    --accento-tenue: #182a40;
+    --su-accento: #0e1116;
+    --nuovo: #a3adbb;
+    --nuovo-bg: #262c36;
+    --corso: #7db5f3;
+    --corso-bg: #18304d;
+    --fatto: #6fcf8f;
+    --fatto-bg: #15301f;
+    --bug: #f48a80;
+    --bug-bg: #3a1a18;
+    --avviso: #f0b85a;
+    --avviso-bg: #382a12;
+    --ombra: none;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--sfondo);
+  color: var(--testo);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+a { color: var(--accento); }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accento); outline-offset: 2px; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--linea); background: var(--carta); border-radius: 6px;
+  padding: 5px 10px; cursor: pointer; white-space: nowrap;
+}
+.btn:hover { border-color: var(--accento); }
+.btn:disabled { opacity: 0.55; cursor: default; }
+.btn.primario { background: var(--accento); border-color: var(--accento); color: var(--su-accento); }
+.btn.piccolo { padding: 2px 8px; font-size: 12.5px; }
+.btn.fantasma { border-color: transparent; background: transparent; }
+.btn.fantasma:hover { background: var(--accento-tenue); }
+.campo { display: flex; flex-direction: column; gap: 4px; }
+.campo > span { font-size: 12.5px; color: var(--tenue); }
+.input, select.input, textarea.input {
+  border: 1px solid var(--linea); background: var(--carta); border-radius: 6px; padding: 6px 9px; min-width: 0;
+}
+textarea.input { resize: vertical; }
+.tenue { color: var(--tenue); }
+.chiave { font-variant-numeric: tabular-nums; color: var(--tenue); font-size: 12.5px; white-space: nowrap; }
+.errore-box { background: var(--bug-bg); color: var(--bug); border-radius: 6px; padding: 8px 10px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+/* barra di avanzamento */
+.barra { height: 6px; border-radius: 99px; background: var(--nuovo-bg); overflow: hidden; display: flex; }
+.barra > .f { background: var(--fatto); }
+.barra > .c { background: var(--corso); }
+
+/* avvisi */
+.avvisi { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 50; }
+.avviso { background: var(--testo); color: var(--sfondo); padding: 9px 14px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.2); max-width: 380px; }
+.avviso.errore { background: var(--bug); color: #fff; }
