@@ -10,7 +10,7 @@ const props = defineProps({
   destinazioni: Array, // sprint in cui si puo' spostare (attivo e futuri), senza quello corrente
   corrente: [Number, String],
   selezionata: String,
-  solaLettura: Boolean, // sprint chiuso
+  sprintChiuso: Boolean, // si aprono task e bug (il bugfixing si fa a sprint chiuso), non si sposta niente
 });
 const emit = defineEmits(['apri', 'nuova', 'sposta']);
 
@@ -42,14 +42,14 @@ function sposta(ev) {
       </button>
       <StatoPill :stato="story.stato" :categoria="story.categoria" :team="story.statoTeam" />
       <Avanzamento :conteggio="story.avanzamento" />
-      <span v-if="!solaLettura" class="azioni">
+      <span class="azioni">
         <template v-if="!eBug">
           <button class="btn piccolo fantasma" type="button" title="Nuovo task in questa funzionalità"
             @click="emit('nuova', { tipo: 'sottotask', padre: story })">+ Task</button>
           <button class="btn piccolo fantasma" type="button" title="Nuovo bug collegato a questa funzionalità"
             @click="emit('nuova', { tipo: 'bug', padre: area, collegaA: story })">+ Bug</button>
         </template>
-        <select v-if="!story.fuoriSprint" class="input sposta" aria-label="Sposta la funzionalità in un altro sprint" @change="sposta">
+        <select v-if="!story.fuoriSprint && !sprintChiuso" class="input sposta" aria-label="Sposta la funzionalità in un altro sprint" @change="sposta">
           <option value="">Sposta…</option>
           <option v-for="s in destinazioni" :key="s.id" :value="s.id">{{ s.nome }}</option>
           <option v-if="corrente !== 'backlog'" value="backlog">Backlog</option>
@@ -62,6 +62,8 @@ function sposta(ev) {
           <span class="chiave">{{ t.key }}</span>
           <span v-if="/bug/i.test(t.tipo)" class="segno-bug">Bug</span>
           <span class="testo">{{ t.titolo }}</span>
+          <span v-if="t.altroSprint" class="segno dove" title="Il bug è collegato a questa funzionalità ma sta in un altro sprint">
+            {{ t.sprint ? 'in ' + t.sprint.nome : 'nel backlog' }}</span>
           <StatoPill :stato="t.stato" :categoria="t.categoria" :team="t.statoTeam" />
           <Persona :persona="t.assegnatario" />
         </button>
@@ -98,6 +100,7 @@ function sposta(ev) {
   padding: 5px 12px 5px 40px;
 }
 .figlio:has(.segno-bug) { grid-template-columns: auto auto minmax(0, 1fr) 118px 110px; }
+.figlio:has(.dove) { grid-template-columns: auto auto minmax(0, 1fr) auto 118px 110px; }
 .figlio:hover { background: var(--carta-2); }
 @media (max-width: 760px) {
   .riga { grid-template-columns: 24px minmax(0, 1fr) auto; }

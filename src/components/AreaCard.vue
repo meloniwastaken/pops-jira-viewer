@@ -8,7 +8,7 @@ defineProps({
   destinazioni: Array,
   corrente: [Number, String],
   selezionata: String,
-  solaLettura: Boolean,
+  sprintChiuso: Boolean,
 });
 const emit = defineEmits(['alterna', 'apri', 'nuova', 'sposta']);
 </script>
@@ -23,12 +23,12 @@ const emit = defineEmits(['alterna', 'apri', 'nuova', 'sposta']);
       <button v-if="area.key" class="btn piccolo fantasma chiave" type="button" @click="emit('apri', area.key)">{{ area.key }}</button>
       <span class="tenue conta">{{ area.story.length }} funzionalità</span>
       <Avanzamento :conteggio="area.avanzamento" />
-      <button v-if="area.key && !solaLettura" class="btn piccolo" type="button" @click="emit('nuova', { tipo: 'story', padre: area })">+ Funzionalità</button>
+      <button v-if="area.key && !sprintChiuso" class="btn piccolo" type="button" @click="emit('nuova', { tipo: 'story', padre: area })">+ Funzionalità</button>
     </header>
     <div v-if="!chiusa">
       <StoryBlock
         v-for="s in area.story" :key="s.key" :story="s" :area="area" :destinazioni="destinazioni" :corrente="corrente"
-        :selezionata="selezionata" :sola-lettura="solaLettura"
+        :selezionata="selezionata" :sprint-chiuso="sprintChiuso"
         @apri="(k) => emit('apri', k)" @nuova="(c) => emit('nuova', c)" @sposta="(s, d) => emit('sposta', s, d)"
       />
     </div>

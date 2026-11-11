@@ -103,6 +103,7 @@ async function copiaPerClaude() {
       <h2 id="pannello-titolo" ref="titolo" tabindex="-1">{{ d.titolo }}</h2>
       <p class="tenue info">
         {{ d.tipo }} · creata il {{ data(d.creata, true) }}<template v-if="d.autore"> da {{ d.autore }}</template>
+        <template v-if="'sprint' in d && d.livello !== 1"> · {{ d.sprint ? 'in ' + d.sprint.nome : 'nel backlog' }}</template>
         <template v-if="d.risolta"> · completata il {{ data(d.risolta, true) }}</template>
       </p>
 

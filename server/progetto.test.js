@@ -56,7 +56,7 @@ test('un sottotask con la story fuori sprint la porta con se\', segnata; senza a
   const albero = costruisciAlbero(
     [issue('POPS-7', { t: 'Sottotask', livello: -1, subtask: true, padre: { key: 'POPS-6', fields: { issuetype: tipo('Story', 0) } } }),
      issue('POPS-30')],
-    [issue('POPS-6', { padre: A })],
+    { fuori: [issue('POPS-6', { padre: A })] },
   );
   assert.equal(albero.aree[0].story[0].key, 'POPS-6');
   assert.equal(albero.aree[0].story[0].fuoriSprint, true);
@@ -99,7 +99,7 @@ test('l\'etichetta di uno stato del team diventa lo stato mostrato, e si contano
   s.fields.creator = { accountId: 'n', displayName: "D'Ambrosio, Nadia" };
   const t = issue('POPS-3', { t: 'Sottotask', livello: -1, subtask: true, cat: 'done', padre: { key: 'POPS-2', fields: { issuetype: tipo('Story', 0) } } });
   t.fields.labels = ['rilasciato-in-collaudo'];
-  const albero = costruisciAlbero([s, t], [], STATI_PREDEFINITI);
+  const albero = costruisciAlbero([s, t], { stati: STATI_PREDEFINITI });
   const story = albero.aree[0].story[0];
   assert.equal(story.statoTeam.nome, 'In attesa');
   assert.equal(story.chiaveStato, 'e:in-attesa');
@@ -109,5 +109,29 @@ test('l\'etichetta di uno stato del team diventa lo stato mostrato, e si contano
   assert.equal(story.avanzamento.fatte, 1);
   assert.deepEqual(albero.numeri.statiTeam, { 'in-attesa': 1, 'rilasciato-in-collaudo': 1 });
   // senza stati del team le etichette non contano
-  assert.equal(costruisciAlbero([s], [], []).aree[0].story[0].chiaveStato, 'indeterminate');
+  assert.equal(costruisciAlbero([s]).aree[0].story[0].chiaveStato, 'indeterminate');
+});
+
+test('bugfixing a sprint chiuso: i bug di altri sprint stanno sotto le story dello sprint, e dicono dove sono', () => {
+  const A = epic('POPS-1', 'Accesso');
+  const sprintCampo = 'customfield_10020';
+  const bugAltrove = issue('POPS-40', { t: 'Bug', padre: A, link: ['POPS-2'] });
+  bugAltrove.fields[sprintCampo] = [{ id: 709, name: 'POPS Sprint 3', state: 'closed' }, { id: 712, name: 'POPS Sprint 4', state: 'active' }];
+  const bugBacklog = issue('POPS-41', { t: 'Bug', padre: A, link: ['POPS-2'] });
+  const albero = costruisciAlbero([issue('POPS-2', { padre: A })], { esterni: [bugAltrove, bugBacklog], campoSprint: sprintCampo });
+  const story = albero.aree[0].story[0];
+  assert.deepEqual(story.bug.map((b) => [b.key, b.altroSprint, b.sprint?.nome ?? null]),
+    [['POPS-40', true, 'POPS Sprint 4'], ['POPS-41', true, null]]);
+  assert.equal(albero.numeri.bug.totale, 2);
+});
+
+test('un bug dello sprint collegato a una story di un altro sprint sta sotto quella story, segnata fuori sprint, e si conta', () => {
+  const A = epic('POPS-1', 'Accesso');
+  const albero = costruisciAlbero([issue('POPS-50', { t: 'Bug', padre: A, link: ['POPS-2'] })], { fuori: [issue('POPS-2', { padre: A })] });
+  const story = albero.aree[0].story[0];
+  assert.equal(story.key, 'POPS-2');
+  assert.equal(story.fuoriSprint, true);
+  assert.deepEqual(story.bug.map((b) => b.key), ['POPS-50']);
+  assert.equal(albero.numeri.bug.totale, 1);
+  assert.equal(albero.numeri.story.totale, 0);
 });

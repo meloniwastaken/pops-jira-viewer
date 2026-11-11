@@ -38,7 +38,8 @@ const gruppi = computed(() => {
   };
 });
 const sprint = computed(() => dati.value?.sprint || null);
-const destinazioni = computed(() => [...gruppi.value.attivi, ...gruppi.value.futuri].filter((s) => s.id !== scelto.value));
+const sprintAperti = computed(() => [...gruppi.value.attivi, ...gruppi.value.futuri]);
+const destinazioni = computed(() => sprintAperti.value.filter((s) => s.id !== scelto.value));
 
 // --- filtri ---
 const vista = computed(() => (dati.value ? filtra(dati.value.aree, f, meta.value.io.accountId) : []));
@@ -291,7 +292,7 @@ async function esci() {
       <div v-else-if="dati" class="aree">
         <AreaCard
           v-for="a in vista" :key="a.key || 'senza'" :area="a" :chiusa="chiuse.has(a.key)" :destinazioni="destinazioni"
-          :corrente="scelto" :selezionata="aperta" :sola-lettura="sprint?.stato === 'closed'"
+          :corrente="scelto" :selezionata="aperta" :sprint-chiuso="sprint?.stato === 'closed'"
           @alterna="chiuse.has(a.key) ? chiuse.delete(a.key) : chiuse.add(a.key)"
           @apri="(k) => (aperta = k)" @nuova="(c) => (nuova = c)" @sposta="sposta"
         />
@@ -309,7 +310,8 @@ async function esci() {
       @chiudi="aperta = null" @aggiornata="carica({ silenzioso: true })" @apri="(k) => (aperta = k)" @nuova="(c) => (nuova = c)"
     />
     <NuovaIssue
-      v-if="nuova" :contesto="nuova" :team="meta.team" :io="meta.io" :sprint="scelto"
+      v-if="nuova" :contesto="nuova" :team="meta.team" :io="meta.io" :sprint="scelto" :sprint-aperti="sprintAperti"
+      :sprint-chiuso="sprint?.stato === 'closed'" :stati-per-tipo="meta.statiPerTipo" :tipi="meta.tipi"
       @chiudi="nuova = null" @creata="creata"
     />
     <Impostazioni

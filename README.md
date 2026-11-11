@@ -55,9 +55,17 @@ Al posto del file si possono usare le variabili d'ambiente `JIRA_URL`, `JIRA_EMA
 - **Dettaglio.** Il pannello a destra mostra descrizione, task, issue collegate e commenti, e permette
   di cambiare stato e assegnatario e di commentare.
 - **Creazione.** «+ Task» in una funzionalità, «+ Bug» collegato a una funzionalità, «+ Funzionalità»
-  in un'area, nello sprint che stai guardando.
+  in un'area. Per bug e funzionalità si sceglie dove vanno (uno sprint aperto o il backlog); per tutti si
+  può scegliere lo stato iniziale, anche «Completata» per un lavoro registrato a posteriori.
 - **Spostamento.** «Sposta…» porta una funzionalità, con i suoi task, in un altro sprint o nel backlog.
-- **Sprint chiusi.** Sono in sola lettura.
+- **Sprint chiusi e bugfixing.** Negli sprint chiusi si aprono task e bug, ma non si sposta niente.
+  - Un task resta nello sprint chiuso con la sua funzionalità: Jira mette i sottotask nello sprint del
+    padre.
+  - Un bug va in uno sprint aperto o nel backlog: Jira non mette issue nuove negli sprint chiusi.
+  - Sotto ogni funzionalità si vedono comunque i bug collegati, ovunque siano finiti («nel backlog»,
+    «in POPS Sprint 4»): il bugfixing di uno sprint si fa aprendo quello sprint.
+  - Al contrario, un bug dello sprint collegato a una funzionalità di un altro sprint compare sotto quella
+    funzionalità, segnata «fuori sprint».
 - **Aggiornamento.** I dati si aggiornano da soli ogni 3 minuti, e quando torni sulla scheda del
   browser.
 
