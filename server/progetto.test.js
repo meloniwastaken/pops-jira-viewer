@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { costruisciAlbero } from './progetto.js';
+import { costruisciAlbero, normalizzaImpostazioni, STATI_PREDEFINITI, slug } from './progetto.js';
 
 const stato = (cat) => ({ name: cat === 'done' ? 'Completata' : cat === 'indeterminate' ? 'In corso' : 'Da completare', statusCategory: { key: cat } });
 const tipo = (name, livello, subtask = false) => ({ name, hierarchyLevel: livello, subtask });
@@ -62,4 +62,52 @@ test('un sottotask con la story fuori sprint la porta con se\', segnata; senza a
   assert.equal(albero.aree[0].story[0].fuoriSprint, true);
   assert.equal(albero.aree.at(-1).titolo, 'Senza area');
   assert.equal(albero.numeri.story.totale, 1); // la story fuori sprint non si conta
+});
+
+
+test('senza impostazioni salvate valgono gli stati di LDA e nessuna persona', () => {
+  const v = normalizzaImpostazioni(null);
+  assert.deepEqual(v.stati, STATI_PREDEFINITI);
+  assert.deepEqual(v.assegnatari, []);
+  assert.deepEqual(v.creatori, []);
+});
+
+test('le impostazioni si ripuliscono: persone doppie, stati senza nome o con etichetta ripetuta, colori ignoti', () => {
+  const v = normalizzaImpostazioni({
+    assegnatari: [{ accountId: 'a', nome: 'Aurora' }, { accountId: 'a', nome: 'Aurora' }, { nome: 'senza id' }],
+    stati: [
+      { nome: 'Pronto per il test', colore: 'fucsia' },
+      { nome: 'Già in collaudo', etichetta: 'gia-in-collaudo', colore: 'arancione' },
+      { nome: 'Doppione', etichetta: 'gia-in-collaudo' },
+      { nome: '   ' },
+    ],
+  });
+  assert.deepEqual(v.assegnatari, [{ accountId: 'a', nome: 'Aurora' }]);
+  assert.deepEqual(v.stati, [
+    { etichetta: 'pronto-per-il-test', nome: 'Pronto per il test', colore: 'giallo' },
+    { etichetta: 'gia-in-collaudo', nome: 'Già in collaudo', colore: 'arancione' },
+  ]);
+  // una lista vuota resta vuota: niente stati del team
+  assert.deepEqual(normalizzaImpostazioni({ stati: [] }).stati, []);
+  assert.equal(slug('  Rilasciato in Formazione! '), 'rilasciato-in-formazione');
+});
+
+test('l\'etichetta di uno stato del team diventa lo stato mostrato, e si contano le issue per stato', () => {
+  const A = epic('POPS-1', 'Accesso');
+  const s = issue('POPS-2', { padre: A, cat: 'indeterminate' });
+  s.fields.labels = ['altro', 'in-attesa'];
+  s.fields.creator = { accountId: 'n', displayName: "D'Ambrosio, Nadia" };
+  const t = issue('POPS-3', { t: 'Sottotask', livello: -1, subtask: true, cat: 'done', padre: { key: 'POPS-2', fields: { issuetype: tipo('Story', 0) } } });
+  t.fields.labels = ['rilasciato-in-collaudo'];
+  const albero = costruisciAlbero([s, t], [], STATI_PREDEFINITI);
+  const story = albero.aree[0].story[0];
+  assert.equal(story.statoTeam.nome, 'In attesa');
+  assert.equal(story.chiaveStato, 'e:in-attesa');
+  assert.equal(story.creatore.nome, "D'Ambrosio, Nadia");
+  assert.equal(story.task[0].chiaveStato, 'e:rilasciato-in-collaudo');
+  // l'avanzamento resta quello di Jira: il task e' completato
+  assert.equal(story.avanzamento.fatte, 1);
+  assert.deepEqual(albero.numeri.statiTeam, { 'in-attesa': 1, 'rilasciato-in-collaudo': 1 });
+  // senza stati del team le etichette non contano
+  assert.equal(costruisciAlbero([s], [], []).aree[0].story[0].chiaveStato, 'indeterminate');
 });

@@ -25,10 +25,13 @@ export const api = {
   meta: (fresco) => chiama('GET', `/meta${fresco ? '?fresco=1' : ''}`),
   sprint: (id, fresco) => chiama('GET', `/sprint/${id}${fresco ? '?fresco=1' : ''}`),
   issue: (key) => chiama('GET', `/issue/${k(key)}`),
-  transizione: (key, id) => chiama('POST', `/issue/${k(key)}/transizione`, { id }),
+  // { transizione: id } per uno stato di Jira, { etichetta } per uno stato del team
+  cambiaStato: (key, destinazione) => chiama('POST', `/issue/${k(key)}/stato`, destinazione),
   assegna: (key, accountId) => chiama('PUT', `/issue/${k(key)}/assegnatario`, { accountId }),
   commenta: (key, testo) => chiama('POST', `/issue/${k(key)}/commento`, { testo }),
   sposta: (key, sprint) => chiama('POST', `/issue/${k(key)}/sprint`, { sprint }),
   crea: (dati) => chiama('POST', '/issue', dati),
   perClaude: (key) => chiama('GET', `/claude/${k(key)}`),
+  utenti: (q) => chiama('GET', `/utenti?q=${encodeURIComponent(q)}`),
+  salvaImpostazioni: (v) => chiama('PUT', '/impostazioni', v),
 };

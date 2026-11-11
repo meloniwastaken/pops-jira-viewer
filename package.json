@@ -1,6 +1,6 @@
 {
   "name": "@meloniwastaken/pops-jira-viewer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Viewer degli sprint Jira del Portale Operatori Sanitari: aree, funzionalità e task, con le azioni di tutti i giorni",
   "repository": {
     "type": "git",
@@ -26,7 +26,7 @@
     "dev": "concurrently -k -n server,web \"node --watch server/avvio-dev.js\" \"vite\"",
     "build": "vite build",
     "start": "node bin/cli.js",
-    "test": "node --test \"server/**/*.test.js\"",
+    "test": "node --test \"server/**/*.test.js\" \"src/**/*.test.js\"",
     "prepublishOnly": "npm test && npm run build"
   },
   "dependencies": {

@@ -6,7 +6,7 @@ import { avvisa, quando, data } from '../util.js';
 import StatoPill from './StatoPill.vue';
 import Persona from './Persona.vue';
 
-const props = defineProps({ chiave: String, team: Array, url: String });
+const props = defineProps({ chiave: String, team: Array, url: String, statiTeam: { type: Array, default: () => [] } });
 const emit = defineEmits(['chiudi', 'aggiornata', 'apri', 'nuova']);
 
 const d = ref(null);
@@ -29,7 +29,9 @@ watch(() => props.chiave, () => { d.value = null; carica(true); }, { immediate: 
 // l'HTML di Jira, ripulito, con i link relativi resi assoluti
 const pulisci = (html) => DOMPurify.sanitize((html || '').replaceAll('href="/', `href="${props.url}/`).replaceAll('src="/', `src="${props.url}/`));
 const descrizione = computed(() => pulisci(d.value?.descrizioneHtml));
-const transizioni = computed(() => (d.value?.transizioni || []).filter((t) => t.a !== d.value.stato));
+// gli stati di Jira; con uno stato del team addosso si puo' anche tornare allo stato di Jira attuale (toglie l'etichetta)
+const transizioni = computed(() => (d.value?.transizioni || []).filter((t) => d.value.statoTeam || t.a !== d.value.stato));
+const altriStatiTeam = computed(() => props.statiTeam.filter((s) => s.etichetta !== d.value?.statoTeam?.etichetta));
 const eStory = computed(() => d.value && !d.value.sottotask && d.value.livello === 0 && !/bug/i.test(d.value.tipo));
 
 async function azione(fn, messaggio) {
@@ -46,11 +48,17 @@ async function azione(fn, messaggio) {
   }
 }
 
+// il valore della tendina: 'j:<id transizione>' o 'e:<etichetta>'
 function cambiaStato(ev) {
-  const id = ev.target.value;
-  const t = transizioni.value.find((x) => x.id === id);
+  const [tipo, valore] = [ev.target.value.slice(0, 2), ev.target.value.slice(2)];
   ev.target.value = '';
-  if (t) azione(() => api.transizione(props.chiave, id), `${props.chiave}: ${t.a}`);
+  if (tipo === 'j:') {
+    const t = transizioni.value.find((x) => x.id === valore);
+    if (t) azione(() => api.cambiaStato(props.chiave, { transizione: valore }), `${props.chiave}: ${t.a}`);
+  } else if (tipo === 'e:') {
+    const s = props.statiTeam.find((x) => x.etichetta === valore);
+    if (s) azione(() => api.cambiaStato(props.chiave, { etichetta: valore }), `${props.chiave}: ${s.nome}`);
+  }
 }
 function assegna(ev) {
   const id = ev.target.value;
@@ -102,12 +110,18 @@ async function copiaPerClaude() {
         <label class="campo">
           <span>Stato</span>
           <span class="riga-stato">
-            <StatoPill :stato="d.stato" :categoria="d.categoria" />
-            <select class="input" :disabled="lavoro || !transizioni.length" aria-label="Cambia stato" @change="cambiaStato">
+            <StatoPill :stato="d.stato" :categoria="d.categoria" :team="d.statoTeam" />
+            <select class="input" :disabled="lavoro || !(transizioni.length || altriStatiTeam.length)" aria-label="Cambia stato" @change="cambiaStato">
               <option value="">Sposta in…</option>
-              <option v-for="t in transizioni" :key="t.id" :value="t.id">{{ t.a }}</option>
+              <optgroup label="Stati di Jira">
+                <option v-for="t in transizioni" :key="t.id" :value="'j:' + t.id">{{ t.a }}</option>
+              </optgroup>
+              <optgroup v-if="altriStatiTeam.length" label="Stati del team">
+                <option v-for="s in altriStatiTeam" :key="s.etichetta" :value="'e:' + s.etichetta">{{ s.nome }}</option>
+              </optgroup>
             </select>
           </span>
+          <span v-if="d.statoTeam" class="su-jira">Su Jira: {{ d.stato }}</span>
         </label>
         <label class="campo">
           <span>Assegnatario</span>
@@ -192,6 +206,7 @@ h3 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing
 .comandi { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .riga-stato { display: flex; gap: 8px; align-items: center; }
 .riga-stato select { flex: 1; }
+.su-jira { font-size: 12.5px; color: var(--tenue); }
 .bottoni { display: flex; gap: 8px; flex-wrap: wrap; }
 .bottoni a { text-decoration: none; }
 .titolo-sez { display: flex; justify-content: space-between; align-items: center; }

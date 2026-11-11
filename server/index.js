@@ -8,6 +8,7 @@ import * as config from './config.js';
 import { creaClient, JiraError } from './jira.js';
 import {
   leggiMeta, leggiSprint, leggiDettaglio, testoPerClaude, mieAperte, spostaInSprint, creaIssue,
+  cambiaStato, salvaImpostazioni, cercaUtenti,
 } from './progetto.js';
 
 const LOCALI = new Set(['localhost', '127.0.0.1', '[::1]']);
@@ -98,8 +99,9 @@ export function creaApp() {
 
   app.get('/api/issue/:key', conJira((req, k) => leggiDettaglio(k.jira, k.meta, req.params.key)));
 
-  app.post('/api/issue/:key/transizione', conJira(async (req, k) => {
-    await k.jira.post(`/rest/api/3/issue/${encodeURIComponent(req.params.key)}/transitions`, { transition: { id: String(req.body.id) } });
+  // { transizione: id } per uno stato di Jira, { etichetta } per uno stato del team
+  app.post('/api/issue/:key/stato', conJira(async (req, k) => {
+    await cambiaStato(k.jira, k.meta, req.params.key, req.body || {});
   }));
 
   app.put('/api/issue/:key/assegnatario', conJira(async (req, k) => {
@@ -116,6 +118,15 @@ export function creaApp() {
   }));
 
   app.post('/api/issue', conJira((req, k) => creaIssue(k.jira, k.meta, req.body || {})));
+
+  // impostazioni condivise del progetto: le scrive solo chi lo amministra (lo controlla anche Jira)
+  app.get('/api/utenti', conJira((req, k) => cercaUtenti(k.jira, k.meta.progetto.key, req.query.q)));
+  app.put('/api/impostazioni', conJira(async (req, k) => {
+    if (!k.meta.puoConfigurare) throw new JiraError(403, 'Le impostazioni le cambia solo chi amministra il progetto su Jira');
+    const salvate = await salvaImpostazioni(k.jira, k.meta.progetto.key, req.body || {});
+    cache = null;
+    return salvate;
+  }));
 
   // per Claude Code: il task in Markdown, e i miei task aperti negli sprint aperti
   app.get('/api/claude/:key', conJira((req, k) => testoPerClaude(k.jira, k.meta, req.params.key)));

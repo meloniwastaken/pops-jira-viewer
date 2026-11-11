@@ -90,3 +90,19 @@ textarea.input { resize: vertical; }
 .avvisi { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 50; }
 .avviso { background: var(--testo); color: var(--sfondo); padding: 9px 14px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,.2); max-width: 380px; }
 .avviso.errore { background: var(--bug); color: #fff; }
+
+/* colori degli stati del team (etichette) */
+.col-giallo { --st: #855d00; --st-bg: #fff3c8; }
+.col-arancione { --st: #a04a00; --st-bg: #ffe6d1; }
+.col-viola { --st: #5a3ea6; --st-bg: #ebe5fa; }
+.col-azzurro { --st: #0a6782; --st-bg: #dcf1f7; }
+.col-rosa { --st: #a1235d; --st-bg: #fbe2ee; }
+.col-verde { --st: #2d662d; --st-bg: #e2f1d9; }
+@media (prefers-color-scheme: dark) {
+  .col-giallo { --st: #f2cd65; --st-bg: #3a3014; }
+  .col-arancione { --st: #f6a463; --st-bg: #3d2413; }
+  .col-viola { --st: #b9a4f5; --st-bg: #2a2142; }
+  .col-azzurro { --st: #74cde6; --st-bg: #13313b; }
+  .col-rosa { --st: #f08bbb; --st-bg: #3c1a2a; }
+  .col-verde { --st: #9bd67f; --st-bg: #1d3218; }
+}

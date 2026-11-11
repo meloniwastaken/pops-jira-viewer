@@ -40,7 +40,7 @@ function sposta(ev) {
         <span class="testo">{{ story.titolo }}</span>
         <span v-if="story.fuoriSprint" class="segno" title="La funzionalità è in un altro sprint: qui ci sono solo i suoi task di questo sprint">fuori sprint</span>
       </button>
-      <StatoPill :stato="story.stato" :categoria="story.categoria" />
+      <StatoPill :stato="story.stato" :categoria="story.categoria" :team="story.statoTeam" />
       <Avanzamento :conteggio="story.avanzamento" />
       <span v-if="!solaLettura" class="azioni">
         <template v-if="!eBug">
@@ -62,7 +62,7 @@ function sposta(ev) {
           <span class="chiave">{{ t.key }}</span>
           <span v-if="/bug/i.test(t.tipo)" class="segno-bug">Bug</span>
           <span class="testo">{{ t.titolo }}</span>
-          <StatoPill :stato="t.stato" :categoria="t.categoria" />
+          <StatoPill :stato="t.stato" :categoria="t.categoria" :team="t.statoTeam" />
           <Persona :persona="t.assegnatario" />
         </button>
       </li>

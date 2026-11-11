@@ -34,41 +34,17 @@ export function descriviSprint(s) {
   return `${periodo} · ${giorni === 1 ? 'manca 1 giorno' : `mancano ${giorni} giorni`}`;
 }
 
+// Jira ha nomi «Nome Cognome» e «Cognome, Nome»: si riportano tutti a nome e cognome
+function parti(nome) {
+  const n = String(nome || '').trim();
+  const [cognome, resto] = n.includes(',') ? n.split(/,\s*/, 2) : [null, null];
+  return resto ? [...resto.split(/\s+/), ...cognome.split(/\s+/)] : n.split(/\s+/);
+}
 export function nomeBreve(nome) {
-  return (nome || '').split(/[ ,]+/)[0];
+  return parti(nome)[0] || '';
 }
 export function iniziali(nome) {
-  const p = (nome || '?').split(/[ ,]+/).filter(Boolean);
-  return ((p[0]?.[0] || '') + (p[1]?.[0] || '')).toUpperCase();
+  const p = parti(nome || '?');
+  return ((p[0]?.[0] || '') + (p.at(-1)?.[0] || '')).toUpperCase();
 }
 export const percentuale = (c) => (c?.totale ? Math.round((100 * c.fatte) / c.totale) : 0);
-
-// --- filtri sull'albero dello sprint ---
-// f: { persona: 'tutti'|'mie'|'nessuno'|accountId, area: key|'', stati: {new, indeterminate, done}, nascondiFatte, q }
-export function filtra(aree, f, io) {
-  const q = f.q.trim().toLowerCase();
-  const testo = (x) => !q || x.key?.toLowerCase().includes(q) || x.titolo.toLowerCase().includes(q);
-  const persona = (x) =>
-    f.persona === 'tutti' ||
-    (f.persona === 'mie' && x.assegnatario?.accountId === io) ||
-    (f.persona === 'nessuno' && !x.assegnatario) ||
-    x.assegnatario?.accountId === f.persona;
-  const stato = (x) => f.stati[x.categoria] && !(f.nascondiFatte && x.categoria === 'done');
-
-  const risultato = [];
-  for (const a of aree) {
-    if (f.area && a.key !== f.area) continue;
-    const areaTrovata = q && testo(a);
-    const story = [];
-    for (const s of a.story) {
-      const libero = areaTrovata || (q && testo(s)); // la ricerca ha trovato il contenitore: si vede tutto quello che c'e' dentro
-      const ok = (x) => persona(x) && stato(x) && (libero || testo(x));
-      const task = s.task.filter(ok);
-      const bug = s.bug.filter(ok);
-      const daSola = stato(s) && (libero || testo(s)) && (f.persona === 'tutti' || persona(s));
-      if (task.length || bug.length || daSola) story.push({ ...s, task, bug });
-    }
-    if (story.length) risultato.push({ ...a, story });
-  }
-  return risultato;
-}

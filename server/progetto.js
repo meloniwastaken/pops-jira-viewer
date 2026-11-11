@@ -1,10 +1,48 @@
 // Il progetto Jira visto come lo usa il portale: Area (Epic) > Funzionalita' (Story) > Task (Sottotask).
 // Le funzioni che leggono da Jira stanno qui; costruisciAlbero e' pura, ed e' quella che ha i test.
 
-const CAMPI_ALBERO = ['summary', 'status', 'issuetype', 'parent', 'assignee', 'updated', 'resolutiondate', 'issuelinks'];
+const CAMPI_ALBERO = ['summary', 'status', 'issuetype', 'parent', 'assignee', 'creator', 'labels', 'updated', 'resolutiondate', 'issuelinks'];
 
 const numero = (key) => Number(String(key).split('-')[1]) || 0;
 const perKey = (a, b) => numero(a.key) - numero(b.key);
+
+// --- impostazioni condivise: una proprieta' del progetto Jira, uguale per tutti ---
+export const PROPRIETA = 'pops-jira-viewer';
+export const COLORI = ['giallo', 'arancione', 'viola', 'azzurro', 'rosa', 'verde'];
+// gli stati del team di LDA: si usano finche' un amministratore del progetto non sceglie i suoi
+export const STATI_PREDEFINITI = [
+  { etichetta: 'in-attesa', nome: 'In attesa', colore: 'giallo' },
+  { etichetta: 'rilasciato-in-collaudo', nome: 'Rilasciato in collaudo', colore: 'arancione' },
+  { etichetta: 'rilasciato-in-formazione', nome: 'Rilasciato in formazione', colore: 'viola' },
+];
+
+export function slug(testo) {
+  return String(testo || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+// valida e ripulisce le impostazioni, sia quelle lette da Jira sia quelle da salvare
+export function normalizzaImpostazioni(v) {
+  const persone = (lista) => (Array.isArray(lista) ? lista : [])
+    .filter((p) => p && typeof p.accountId === 'string' && p.accountId)
+    .map((p) => ({ accountId: p.accountId, nome: String(p.nome || p.accountId) }))
+    .filter((p, i, a) => a.findIndex((x) => x.accountId === p.accountId) === i);
+  const stati = Array.isArray(v?.stati) ? v.stati : STATI_PREDEFINITI;
+  const visti = new Set();
+  return {
+    assegnatari: persone(v?.assegnatari),
+    creatori: persone(v?.creatori),
+    stati: stati
+      .map((s) => ({ etichetta: slug(s?.etichetta || s?.nome), nome: String(s?.nome || '').trim(), colore: COLORI.includes(s?.colore) ? s.colore : 'giallo' }))
+      .filter((s) => s.etichetta && s.nome && !visti.has(s.etichetta) && visti.add(s.etichetta)),
+  };
+}
+
+// lo stato del team, se l'issue ha una delle etichette configurate (la prima nell'ordine delle impostazioni)
+export function conStatoDelTeam(x, stati = []) {
+  const s = stati.find((s) => x.etichette?.includes(s.etichetta)) || null;
+  return { ...x, statoTeam: s, chiaveStato: s ? `e:${s.etichetta}` : x.categoria };
+}
 
 export function sintesi(i) {
   const f = i.fields || {};
@@ -18,6 +56,8 @@ export function sintesi(i) {
     stato: f.status?.name || '',
     categoria: f.status?.statusCategory?.key || 'new',
     assegnatario: f.assignee ? { accountId: f.assignee.accountId, nome: f.assignee.displayName } : null,
+    creatore: f.creator ? { accountId: f.creator.accountId, nome: f.creator.displayName } : null,
+    etichette: f.labels || [],
     aggiornata: f.updated || null,
     risolta: f.resolutiondate || null,
     padre: p
@@ -43,12 +83,14 @@ function conteggio(lista) {
   return c;
 }
 
-// issues: le issue dello sprint (o del backlog); fuori: le story fuori sprint che fanno da padre a un sottotask
-export function costruisciAlbero(issues, fuori = []) {
-  const tutte = issues.map(sintesi);
+// issues: le issue dello sprint (o del backlog); fuori: le story fuori sprint che fanno da padre a un sottotask;
+// stati: gli stati del team delle impostazioni
+export function costruisciAlbero(issues, fuori = [], stati = []) {
+  const leggi = (i) => conStatoDelTeam(sintesi(i), stati);
+  const tutte = issues.map(leggi);
   const story = new Map();
   for (const x of tutte.filter((x) => !x.sottotask && x.livello === 0)) story.set(x.key, { ...x, task: [], bug: [] });
-  for (const x of fuori.map(sintesi)) if (!story.has(x.key)) story.set(x.key, { ...x, task: [], bug: [], fuoriSprint: true });
+  for (const x of fuori.map(leggi)) if (!story.has(x.key)) story.set(x.key, { ...x, task: [], bug: [], fuoriSprint: true });
 
   for (const t of tutte.filter((x) => x.sottotask)) {
     const s = t.padre && story.get(t.padre.key);
@@ -89,12 +131,16 @@ export function costruisciAlbero(issues, fuori = []) {
     for (const s of a.story) s.avanzamento = conteggio(s.task.length ? s.task : [s]);
   }
   const storie = lista.flatMap((a) => a.story.filter((s) => !s.fuoriSprint));
+  // quante issue dello sprint sono in ciascuno stato del team
+  const team = {};
+  for (const x of tutte) if (x.statoTeam) team[x.statoTeam.etichetta] = (team[x.statoTeam.etichetta] || 0) + 1;
   return {
     aree: lista,
     numeri: {
       story: conteggio(storie.filter((s) => !/bug/i.test(s.tipo))),
       task: conteggio(storie.flatMap((s) => s.task)),
       bug: conteggio([...storie.filter((s) => /bug/i.test(s.tipo)), ...storie.flatMap((s) => s.bug)]),
+      statiTeam: team,
     },
   };
 }
@@ -123,17 +169,25 @@ export async function leggiMeta(client, url, chiave) {
     task: trova((t) => !t.subtask && t.hierarchyLevel === 0 && /task|attivit/i.test(t.name)),
   };
 
-  const [board, io, tipiLink, assegnate] = await Promise.all([
+  const [board, io, tipiLink, salvate, permessi] = await Promise.all([
     client.get(`/rest/agile/1.0/board?projectKeyOrId=${encodeURIComponent(chiave)}`).then((r) =>
       r.values.find((b) => b.type === 'scrum') || r.values[0] || null),
     client.get('/rest/api/3/myself'),
     client.get('/rest/api/3/issueLinkType').then((r) => r.issueLinkTypes || []),
-    client.cerca(`project = "${chiave}" AND assignee is not EMPTY ORDER BY updated DESC`, ['assignee']),
+    leggiImpostazioni(client, chiave),
+    client.get(`/rest/api/3/mypermissions?projectKey=${encodeURIComponent(chiave)}&permissions=ADMINISTER_PROJECTS`),
   ]);
   const sprint = board ? (await client.tutti(`/rest/agile/1.0/board/${board.id}/sprint`)).map(sprintDi) : [];
+  const impostazioni = normalizzaImpostazioni(salvate);
 
+  // il team: gli assegnatari scelti nelle impostazioni; senza impostazioni, chi ha issue assegnate nel progetto
   const team = new Map([[io.accountId, io.displayName]]);
-  for (const i of assegnate) team.set(i.fields.assignee.accountId, i.fields.assignee.displayName);
+  if (impostazioni.assegnatari.length) {
+    for (const p of impostazioni.assegnatari) team.set(p.accountId, p.nome);
+  } else {
+    const assegnate = await client.cerca(`project = "${chiave}" AND assignee is not EMPTY ORDER BY updated DESC`, ['assignee']);
+    for (const i of assegnate) team.set(i.fields.assignee.accountId, i.fields.assignee.displayName);
+  }
   const link = tipiLink.find((t) => /^relat/i.test(t.name)) || tipiLink[0] || null;
 
   return {
@@ -143,9 +197,56 @@ export async function leggiMeta(client, url, chiave) {
     sprint,
     io: { accountId: io.accountId, nome: io.displayName, email: io.emailAddress || '' },
     team: [...team].map(([accountId, nome]) => ({ accountId, nome })).sort((a, b) => a.nome.localeCompare(b.nome)),
+    impostazioni,
+    impostazioniSalvate: salvate !== null,
+    puoConfigurare: Boolean(permessi.permissions?.ADMINISTER_PROJECTS?.havePermission),
+    colori: COLORI,
     tipi: tipiId,
     link: link ? link.name : null,
   };
+}
+
+export async function leggiImpostazioni(client, chiave) {
+  try {
+    const r = await client.get(`/rest/api/3/project/${encodeURIComponent(chiave)}/properties/${PROPRIETA}`);
+    return r?.value ?? null;
+  } catch (e) {
+    if (e.status === 404) return null;
+    throw e;
+  }
+}
+
+export async function salvaImpostazioni(client, chiave, valore) {
+  const pulite = normalizzaImpostazioni(valore);
+  await client.put(`/rest/api/3/project/${encodeURIComponent(chiave)}/properties/${PROPRIETA}`, pulite);
+  return pulite;
+}
+
+// per scegliere le persone nelle impostazioni: chi si puo' assegnare nel progetto
+export async function cercaUtenti(client, chiave, testo) {
+  const q = encodeURIComponent(String(testo || '').trim());
+  const r = await client.get(`/rest/api/3/user/assignable/search?project=${encodeURIComponent(chiave)}&query=${q}&maxResults=20`);
+  return r.filter((u) => u.accountType === 'atlassian' && u.active !== false).map((u) => ({ accountId: u.accountId, nome: u.displayName }));
+}
+
+// Cambio di stato: uno stato di Jira (una transizione) toglie le etichette degli stati del team;
+// uno stato del team mette la sua etichetta e toglie le altre, senza toccare lo stato di Jira. Come in LDA.
+export async function cambiaStato(client, meta, key, { transizione, etichetta }) {
+  const k = encodeURIComponent(key);
+  const etichetteTeam = meta.impostazioni.stati.map((s) => s.etichetta);
+  if (etichetta && !etichetteTeam.includes(etichetta)) throw new Error(`"${etichetta}" non è uno stato del team`);
+  if (!etichetta && !transizione) throw new Error('Manca lo stato di destinazione');
+  const i = await client.get(`/rest/api/3/issue/${k}?fields=labels,status&expand=transitions`);
+  const modifiche = (i.fields.labels || []).filter((l) => etichetteTeam.includes(l) && l !== etichetta).map((l) => ({ remove: l }));
+  if (etichetta && !(i.fields.labels || []).includes(etichetta)) modifiche.push({ add: etichetta });
+  let t = null;
+  if (transizione) {
+    t = (i.transitions || []).find((x) => x.id === String(transizione));
+    if (!t) throw new Error('Questo cambio di stato non è disponibile dallo stato attuale');
+  }
+  if (modifiche.length) await client.put(`/rest/api/3/issue/${k}`, { update: { labels: modifiche } });
+  // tornare allo stato di Jira in cui l'issue e' gia' vuol dire solo togliere l'etichetta
+  if (t && t.to?.name !== i.fields.status?.name) await client.post(`/rest/api/3/issue/${k}/transitions`, { transition: { id: t.id } });
 }
 
 export async function leggiSprint(client, meta, id) {
@@ -159,14 +260,14 @@ export async function leggiSprint(client, meta, id) {
     .map((i) => i.fields.parent.key))];
   const fuori = mancanti.length ? await client.cerca(`key in (${mancanti.join(',')})`, CAMPI_ALBERO) : [];
   const sprint = id === 'backlog' ? null : meta.sprint.find((s) => s.id === Number(id)) || null;
-  return { sprint, ...costruisciAlbero(issues, fuori) };
+  return { sprint, ...costruisciAlbero(issues, fuori, meta.impostazioni.stati) };
 }
 
 export async function leggiDettaglio(client, meta, key) {
-  const campi = 'summary,status,issuetype,parent,assignee,reporter,created,updated,resolutiondate,description,comment,issuelinks,subtasks';
+  const campi = 'summary,status,issuetype,parent,assignee,creator,labels,created,updated,resolutiondate,description,comment,issuelinks,subtasks';
   const i = await client.get(`/rest/api/3/issue/${encodeURIComponent(key)}?fields=${campi}&expand=renderedFields,transitions`);
   const f = i.fields;
-  const d = sintesi(i);
+  const d = conStatoDelTeam(sintesi(i), meta.impostazioni.stati);
   // per un sottotask serve anche l'area, che e' il padre della story
   let area = null;
   if (d.padre && d.padre.livello === 1) area = { key: d.padre.key, titolo: d.padre.titolo };
@@ -180,7 +281,7 @@ export async function leggiDettaglio(client, meta, key) {
     url: `${meta.url}/browse/${i.key}`,
     area,
     creata: f.created,
-    autore: f.reporter?.displayName || '',
+    autore: f.creator?.displayName || '',
     descrizioneHtml: i.renderedFields?.description || '',
     commenti: (f.comment?.comments || []).map((c, n) => ({
       id: c.id,
@@ -189,6 +290,7 @@ export async function leggiDettaglio(client, meta, key) {
       html: commentiHtml[n]?.body || '',
     })),
     transizioni: (i.transitions || []).map((t) => ({ id: t.id, nome: t.name, a: t.to?.name, categoria: t.to?.statusCategory?.key })),
+    // i sottotask arrivano senza etichette: lo stato del team si vede aprendoli
     sottotaskDi: (f.subtasks || []).map(sintesi).sort(perKey),
     link: (f.issuelinks || []).map((l) => {
       const altra = l.outwardIssue || l.inwardIssue;
@@ -199,11 +301,12 @@ export async function leggiDettaglio(client, meta, key) {
 
 // Il task in Markdown, da incollare in Claude Code
 export async function testoPerClaude(client, meta, key) {
-  const campi = 'summary,description,status,issuetype,parent,assignee';
+  const campi = 'summary,description,status,issuetype,parent,assignee,labels';
   const i = await client.get(`/rest/api/2/issue/${encodeURIComponent(key)}?fields=${campi}`);
   const f = i.fields;
+  const team = meta.impostazioni.stati.find((s) => (f.labels || []).includes(s.etichetta));
   const righe = [`# ${i.key} - ${f.summary}`, ''];
-  righe.push(`Tipo: ${f.issuetype.name} · Stato: ${f.status.name} · Assegnato a: ${f.assignee?.displayName || 'nessuno'}`);
+  righe.push(`Tipo: ${f.issuetype.name} · Stato: ${f.status.name}${team ? ` (${team.nome})` : ''} · Assegnato a: ${f.assignee?.displayName || 'nessuno'}`);
   let storia = null;
   if (f.parent && f.issuetype.subtask) {
     storia = await client.get(`/rest/api/2/issue/${f.parent.key}?fields=summary,description,parent`);
@@ -219,7 +322,8 @@ export async function testoPerClaude(client, meta, key) {
 
 export async function mieAperte(client, meta) {
   const jql = `project = "${meta.progetto.key}" AND sprint in openSprints() AND assignee = currentUser() AND statusCategory != Done ORDER BY key`;
-  return (await client.cerca(jql, CAMPI_ALBERO)).map((i) => ({ ...sintesi(i), url: `${meta.url}/browse/${i.key}` }));
+  return (await client.cerca(jql, CAMPI_ALBERO))
+    .map((i) => ({ ...conStatoDelTeam(sintesi(i), meta.impostazioni.stati), url: `${meta.url}/browse/${i.key}` }));
 }
 
 export async function spostaInSprint(client, key, sprint) {

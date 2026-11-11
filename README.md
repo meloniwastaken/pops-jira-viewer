@@ -43,9 +43,14 @@ Al posto del file si possono usare le variabili d'ambiente `JIRA_URL`, `JIRA_EMA
   completate, task in corso e da fare, bug aperti.
 - **Albero.** Ogni area (Epic) con le sue funzionalità (Story), e sotto i task (Sottotask) e i bug
   collegati, con stato, assegnatario e barra di avanzamento.
-- **Filtri.** Persona («Le mie», una persona, «Non assegnati»), area, stato, testo (`/` per cercare),
-  «Nascondi i completati». Sprint, filtri e issue aperta restano nell'indirizzo della pagina: lo puoi
-  salvare nei preferiti.
+- **Filtri.** Assegnatario («Le mie», una persona, «Non assegnati»), creatore («Creati da»), area,
+  stato, testo (`/` per cercare), «Nascondi i completati». Sprint, filtri e issue aperta restano
+  nell'indirizzo della pagina: lo puoi salvare nei preferiti.
+- **Stati del team.** Oltre agli stati di Jira ci sono quelli del team, fatti con le etichette come in
+  LDA: di base «In attesa», «Rilasciato in collaudo» e «Rilasciato in formazione». Scegliendone uno,
+  l'issue prende l'etichetta e il suo stato su Jira non cambia; scegliendo uno stato di Jira, le
+  etichette degli stati del team si tolgono. Si vedono nelle righe, nei filtri e nel riepilogo dello
+  sprint, mentre l'avanzamento resta quello di Jira.
 - **Dettaglio.** Il pannello a destra mostra descrizione, task, issue collegate e commenti, e permette
   di cambiare stato e assegnatario e di commentare.
 - **Creazione.** «+ Task» in una funzionalità, «+ Bug» collegato a una funzionalità, «+ Funzionalità»
@@ -54,6 +59,20 @@ Al posto del file si possono usare le variabili d'ambiente `JIRA_URL`, `JIRA_EMA
 - **Sprint chiusi.** Sono in sola lettura.
 - **Aggiornamento.** I dati si aggiornano da soli ogni 3 minuti, e quando torni sulla scheda del
   browser.
+
+## Impostazioni del progetto
+
+Chi amministra il progetto su Jira vede il pulsante «Impostazioni». Lì sceglie:
+
+- gli **assegnatari rapidi**: le persone dei filtri e degli elenchi «Assegnatario». Senza, il viewer usa
+  chi ha issue assegnate nel progetto;
+- le persone del filtro **«Creati da»**;
+- gli **stati del team**: nome, colore e ordine. L'etichetta nasce dal nome e, una volta salvata, non
+  cambia più, perché è quella che le issue hanno addosso.
+
+Le impostazioni si salvano su Jira, come proprietà `pops-jira-viewer` del progetto: valgono per tutti
+quelli che usano il viewer e nel pacchetto non c'è nessun nome. Gli stati veri di Jira, invece, li può
+aggiungere solo un amministratore di Jira, non del progetto: per questo il team usa le etichette.
 
 ## Per Claude Code
 
@@ -70,6 +89,9 @@ Con il viewer aperto, Claude può leggere anche le API locali:
 | `GET /api/sprint/attivo` | l'albero dello sprint attivo (JSON); anche `/api/sprint/{id}` e `/api/sprint/backlog` |
 | `GET /api/issue/POPS-123` | il dettaglio di un'issue (JSON) |
 
+Ogni issue ha `stato` e `categoria` di Jira, `statoTeam` (lo stato del team, o `null`), `assegnatario`
+e `creatore`.
+
 Il server ascolta solo su `127.0.0.1` e rifiuta le richieste che non arrivano da `localhost`.
 
 ## Sviluppo
@@ -77,7 +99,7 @@ Il server ascolta solo su `127.0.0.1` e rifiuta le richieste che non arrivano da
 ```bash
 npm install
 npm run dev     # server sulla 3000 e Vite sulla 5173, con il proxy di /api
-npm test        # test della costruzione dell'albero
+npm test        # test dell'albero, delle impostazioni e dei filtri
 npm run build   # frontend in dist/
 ```
 

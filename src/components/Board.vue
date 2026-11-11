@@ -1,8 +1,10 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { api } from '../api.js';
-import { avvisa, descriviSprint, filtra, nomeBreve, percentuale } from '../util.js';
+import { avvisa, descriviSprint, nomeBreve, percentuale } from '../util.js';
+import { chiaviStati, filtra } from '../filtri.js';
 import AreaCard from './AreaCard.vue';
+import Impostazioni from './Impostazioni.vue';
 import Avanzamento from './Avanzamento.vue';
 import PannelloIssue from './PannelloIssue.vue';
 import NuovaIssue from './NuovaIssue.vue';
@@ -19,7 +21,8 @@ const aperta = ref(null); // chiave dell'issue nel pannello
 const nuova = ref(null); // contesto della finestra di creazione
 const chiuse = reactive(new Set()); // aree chiuse
 const cerca = ref(null);
-const f = reactive({ persona: 'tutti', area: '', stati: { new: true, indeterminate: true, done: true }, nascondiFatte: true, q: '' });
+const impostazioniAperte = ref(false);
+const f = reactive({ persona: 'tutti', creatore: 'tutti', area: '', stati: { new: true, indeterminate: true, done: true }, nascondiFatte: true, q: '' });
 
 // --- sprint ---
 const gruppi = computed(() => {
@@ -36,12 +39,22 @@ const destinazioni = computed(() => [...gruppi.value.attivi, ...gruppi.value.fut
 
 // --- filtri ---
 const vista = computed(() => (dati.value ? filtra(dati.value.aree, f, meta.value.io.accountId) : []));
-const filtriAttivi = computed(() => f.persona !== 'tutti' || f.area || f.q || !f.stati.new || !f.stati.indeterminate || !f.stati.done);
+const stati = computed(() => chiaviStati(meta.value?.impostazioni.stati));
+const filtriAttivi = computed(() => f.persona !== 'tutti' || f.creatore !== 'tutti' || f.area || f.q || Object.values(f.stati).some((v) => !v));
 function azzera() {
-  Object.assign(f, { persona: 'tutti', area: '', q: '' });
-  Object.assign(f.stati, { new: true, indeterminate: true, done: true });
+  Object.assign(f, { persona: 'tutti', creatore: 'tutti', area: '', q: '' });
+  for (const k of Object.keys(f.stati)) f.stati[k] = true;
+}
+// uno stato del team nuovo, arrivato con le impostazioni, parte acceso
+function allineaStati() {
+  for (const s of stati.value) if (!(s.chiave in f.stati)) f.stati[s.chiave] = true;
 }
 const persone = computed(() => (meta.value?.team || []).filter((p) => p.accountId !== meta.value.io.accountId));
+const creatori = computed(() => meta.value?.impostazioni.creatori || []);
+// quante issue dello sprint sono in ciascuno stato del team, per il riepilogo
+const contiTeam = computed(() => (meta.value?.impostazioni.stati || [])
+  .map((s) => ({ ...s, n: dati.value?.numeri.statiTeam?.[s.etichetta] || 0 }))
+  .filter((s) => s.n));
 
 // --- caricamento ---
 let ultimo = 0;
@@ -59,14 +72,19 @@ async function carica({ silenzioso = false, fresco = false } = {}) {
     caricando.value = false;
   }
 }
-async function aggiorna() {
+async function aggiorna(messaggio = 'Aggiornato') {
   try {
     meta.value = await api.meta(true);
+    allineaStati();
   } catch (e) {
     if (e.configura) return emit('scollegato');
   }
   await carica({ fresco: true });
-  avvisa('Aggiornato');
+  if (messaggio) avvisa(messaggio);
+}
+function impostazioniSalvate() {
+  impostazioniAperte.value = false;
+  aggiorna(null);
 }
 
 watch(scelto, (id, prima) => {
@@ -82,6 +100,7 @@ function scriviUrl() {
   const p = new URLSearchParams();
   if (scelto.value != null) p.set('sprint', scelto.value);
   if (f.persona !== 'tutti') p.set('persona', f.persona);
+  if (f.creatore !== 'tutti') p.set('creatore', f.creatore);
   if (f.area) p.set('area', f.area);
   if (f.q) p.set('q', f.q);
   if (!f.nascondiFatte) p.set('fatte', '1');
@@ -94,7 +113,7 @@ function tastiera(ev) {
   if (ev.key === '/' && !/input|textarea|select/i.test(document.activeElement?.tagName)) {
     ev.preventDefault();
     cerca.value?.focus();
-  } else if (ev.key === 'Escape' && !nuova.value && aperta.value) {
+  } else if (ev.key === 'Escape' && !nuova.value && !impostazioniAperte.value && aperta.value) {
     aperta.value = null;
   }
 }
@@ -113,7 +132,9 @@ onMounted(async () => {
   const p = new URLSearchParams(location.search);
   const daUrl = p.get('sprint');
   const valido = daUrl === 'backlog' || meta.value.sprint.some((s) => String(s.id) === daUrl);
+  allineaStati();
   f.persona = p.get('persona') || 'tutti';
+  f.creatore = p.get('creatore') || 'tutti';
   f.area = p.get('area') || '';
   f.q = p.get('q') || '';
   aperta.value = p.get('issue');
@@ -178,7 +199,8 @@ async function esci() {
         </select>
       </label>
       <div class="destra">
-        <button class="btn" type="button" :disabled="caricando" @click="aggiorna">{{ caricando ? 'Carico…' : 'Aggiorna' }}</button>
+        <button class="btn" type="button" :disabled="caricando" @click="aggiorna()">{{ caricando ? 'Carico…' : 'Aggiorna' }}</button>
+        <button v-if="meta?.puoConfigurare" class="btn fantasma piccolo" type="button" @click="impostazioniAperte = true">Impostazioni</button>
         <span v-if="meta" class="tenue io">{{ meta.io.nome }}</span>
         <button v-if="!stato.daAmbiente" class="btn fantasma piccolo" type="button" @click="esci">Esci</button>
       </div>
@@ -211,6 +233,10 @@ async function esci() {
             <span class="grande">{{ dati.numeri.task.daFare }}</span>
             <span class="tenue">task da fare</span>
           </div>
+          <div v-for="s in contiTeam" :key="s.etichetta" class="numero team" :class="'col-' + s.colore">
+            <span class="grande">{{ s.n }}</span>
+            <span class="tenue">{{ s.nome.toLowerCase() }}</span>
+          </div>
           <div v-if="dati.numeri.bug.totale" class="numero bug">
             <span class="grande">{{ dati.numeri.bug.totale - dati.numeri.bug.fatte }}</span>
             <span class="tenue">bug aperti</span>
@@ -226,15 +252,22 @@ async function esci() {
             @click="f.persona = p.accountId">{{ nomeBreve(p.nome) }}</button>
           <button type="button" class="chip" :aria-pressed="f.persona === 'nessuno'" @click="f.persona = 'nessuno'">Non assegnati</button>
         </div>
+        <div v-if="creatori.length" class="persone" role="group" aria-label="Creati da">
+          <span class="tenue etichetta-gruppo">Creati da</span>
+          <button type="button" class="chip" :aria-pressed="f.creatore === 'tutti'" @click="f.creatore = 'tutti'">Tutti</button>
+          <button v-for="p in creatori" :key="p.accountId" type="button" class="chip" :aria-pressed="f.creatore === p.accountId"
+            @click="f.creatore = p.accountId">{{ nomeBreve(p.nome) }}</button>
+        </div>
         <div class="altri">
           <select v-model="f.area" class="input" aria-label="Area">
             <option value="">Tutte le aree</option>
             <option v-for="a in dati?.aree.filter((a) => a.key) || []" :key="a.key" :value="a.key">{{ a.titolo }}</option>
           </select>
           <span class="stati" role="group" aria-label="Stati">
-            <label><input v-model="f.stati.new" type="checkbox" /> Da fare</label>
-            <label><input v-model="f.stati.indeterminate" type="checkbox" /> In corso</label>
-            <label><input v-model="f.stati.done" type="checkbox" :disabled="f.nascondiFatte" /> Completati</label>
+            <label v-for="s in stati" :key="s.chiave">
+              <input v-model="f.stati[s.chiave]" type="checkbox" :disabled="s.chiave === 'done' && f.nascondiFatte" />
+              <span v-if="s.colore" class="pallino" :class="'col-' + s.colore" aria-hidden="true"></span>{{ s.nome }}
+            </label>
           </span>
           <label class="nascondi"><input v-model="f.nascondiFatte" type="checkbox" /> Nascondi i completati</label>
           <input ref="cerca" v-model="f.q" class="input ricerca" type="search" placeholder="Cerca per chiave o titolo  ( / )" aria-label="Cerca" />
@@ -260,12 +293,16 @@ async function esci() {
     </main>
 
     <PannelloIssue
-      v-if="aperta && meta" :chiave="aperta" :team="meta.team" :url="meta.url"
+      v-if="aperta && meta" :chiave="aperta" :team="meta.team" :url="meta.url" :stati-team="meta.impostazioni.stati"
       @chiudi="aperta = null" @aggiornata="carica({ silenzioso: true })" @apri="(k) => (aperta = k)" @nuova="(c) => (nuova = c)"
     />
     <NuovaIssue
       v-if="nuova" :contesto="nuova" :team="meta.team" :io="meta.io" :sprint="scelto"
       @chiudi="nuova = null" @creata="creata"
+    />
+    <Impostazioni
+      v-if="impostazioniAperte" :impostazioni="meta.impostazioni" :colori="meta.colori" :salvate="meta.impostazioniSalvate"
+      @chiudi="impostazioniAperte = false" @salvate="impostazioniSalvate"
     />
   </div>
 </template>
@@ -294,13 +331,16 @@ h1 { margin: 0; font-size: 24px; }
 .grande { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .grande small { font-size: 14px; color: var(--tenue); font-weight: 600; }
 .numero.bug .grande { color: var(--bug); }
+.numero.team .grande { color: var(--st); }
 
 .filtri { display: flex; flex-direction: column; gap: 8px; }
 .persone { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { border: 1px solid var(--linea); background: var(--carta); border-radius: 99px; padding: 3px 12px; cursor: pointer; }
 .chip[aria-pressed='true'] { background: var(--accento); border-color: var(--accento); color: var(--su-accento); }
 .altri { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
-.stati { display: flex; gap: 10px; }
+.stati { display: flex; gap: 6px 10px; flex-wrap: wrap; }
+.pallino { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--st); margin-right: 2px; }
+.etichetta-gruppo { font-size: 12.5px; align-self: center; margin-right: 2px; }
 .stati label, .nascondi { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; white-space: nowrap; }
 .ricerca { flex: 1; min-width: 200px; }
 .aree { display: flex; flex-direction: column; gap: 12px; }
