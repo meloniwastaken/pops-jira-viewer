@@ -44,7 +44,8 @@ Al posto del file si possono usare le variabili d'ambiente `JIRA_URL`, `JIRA_EMA
 - **Albero.** Ogni area (Epic) con le sue funzionalità (Story), e sotto i task (Sottotask) e i bug
   collegati, con stato, assegnatario e barra di avanzamento.
 - **Filtri.** Assegnatario («Le mie», una persona, «Non assegnati»), creatore («Creati da»), area,
-  stato, testo (`/` per cercare), «Nascondi i completati». Sprint, filtri e issue aperta restano
+  tipo (Task, Bug: con uno solo dei due si vedono solo quelli, dentro le loro funzionalità), stato,
+  testo (`/` per cercare), «Nascondi i completati». Sprint, filtri e issue aperta restano
   nell'indirizzo della pagina: lo puoi salvare nei preferiti.
 - **Stati del team.** Oltre agli stati di Jira ci sono quelli del team, fatti con le etichette come in
   LDA: di base «In attesa», «Rilasciato in collaudo» e «Rilasciato in formazione». Scegliendone uno,

@@ -22,7 +22,10 @@ const nuova = ref(null); // contesto della finestra di creazione
 const chiuse = reactive(new Set()); // aree chiuse
 const cerca = ref(null);
 const impostazioniAperte = ref(false);
-const f = reactive({ persona: 'tutti', creatore: 'tutti', area: '', stati: { new: true, indeterminate: true, done: true }, nascondiFatte: true, q: '' });
+const f = reactive({
+  persona: 'tutti', creatore: 'tutti', area: '', stati: { new: true, indeterminate: true, done: true },
+  tipi: { task: true, bug: true }, nascondiFatte: true, q: '',
+});
 
 // --- sprint ---
 const gruppi = computed(() => {
@@ -40,10 +43,12 @@ const destinazioni = computed(() => [...gruppi.value.attivi, ...gruppi.value.fut
 // --- filtri ---
 const vista = computed(() => (dati.value ? filtra(dati.value.aree, f, meta.value.io.accountId) : []));
 const stati = computed(() => chiaviStati(meta.value?.impostazioni.stati));
-const filtriAttivi = computed(() => f.persona !== 'tutti' || f.creatore !== 'tutti' || f.area || f.q || Object.values(f.stati).some((v) => !v));
+const filtriAttivi = computed(() => f.persona !== 'tutti' || f.creatore !== 'tutti' || f.area || f.q
+  || Object.values(f.stati).some((v) => !v) || !f.tipi.task || !f.tipi.bug);
 function azzera() {
   Object.assign(f, { persona: 'tutti', creatore: 'tutti', area: '', q: '' });
   for (const k of Object.keys(f.stati)) f.stati[k] = true;
+  Object.assign(f.tipi, { task: true, bug: true });
 }
 // uno stato del team nuovo, arrivato con le impostazioni, parte acceso
 function allineaStati() {
@@ -103,6 +108,7 @@ function scriviUrl() {
   if (f.creatore !== 'tutti') p.set('creatore', f.creatore);
   if (f.area) p.set('area', f.area);
   if (f.q) p.set('q', f.q);
+  if (f.tipi.task !== f.tipi.bug) p.set('tipo', f.tipi.task ? 'task' : 'bug');
   if (!f.nascondiFatte) p.set('fatte', '1');
   if (aperta.value) p.set('issue', aperta.value);
   history.replaceState(null, '', `${location.pathname}${p.size ? '?' + p : ''}`);
@@ -135,6 +141,7 @@ onMounted(async () => {
   allineaStati();
   f.persona = p.get('persona') || 'tutti';
   f.creatore = p.get('creatore') || 'tutti';
+  if (['task', 'bug'].includes(p.get('tipo'))) Object.assign(f.tipi, { task: p.get('tipo') === 'task', bug: p.get('tipo') === 'bug' });
   f.area = p.get('area') || '';
   f.q = p.get('q') || '';
   aperta.value = p.get('issue');
@@ -263,6 +270,11 @@ async function esci() {
             <option value="">Tutte le aree</option>
             <option v-for="a in dati?.aree.filter((a) => a.key) || []" :key="a.key" :value="a.key">{{ a.titolo }}</option>
           </select>
+          <span class="stati" role="group" aria-label="Tipo">
+            <label><input v-model="f.tipi.task" type="checkbox" /> Task</label>
+            <label><input v-model="f.tipi.bug" type="checkbox" /> Bug</label>
+          </span>
+          <span class="separatore" aria-hidden="true"></span>
           <span class="stati" role="group" aria-label="Stati">
             <label v-for="s in stati" :key="s.chiave">
               <input v-model="f.stati[s.chiave]" type="checkbox" :disabled="s.chiave === 'done' && f.nascondiFatte" />
@@ -339,6 +351,7 @@ h1 { margin: 0; font-size: 24px; }
 .chip[aria-pressed='true'] { background: var(--accento); border-color: var(--accento); color: var(--su-accento); }
 .altri { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
 .stati { display: flex; gap: 6px 10px; flex-wrap: wrap; }
+.separatore { width: 1px; height: 18px; background: var(--linea); }
 .pallino { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--st); margin-right: 2px; }
 .etichetta-gruppo { font-size: 12.5px; align-self: center; margin-right: 2px; }
 .stati label, .nascondi { display: inline-flex; gap: 5px; align-items: center; cursor: pointer; white-space: nowrap; }

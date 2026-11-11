@@ -1,11 +1,20 @@
 // I filtri sull'albero dello sprint. Funzioni pure, senza Vue: hanno i loro test.
-//
+
+// bug, funzionalita' (story) o task (sottotask, e i Task di Jira messi direttamente nell'area)
+export function genere(x) {
+  if (/bug/i.test(x.tipo)) return 'bug';
+  if (!x.sottotask && /stor/i.test(x.tipo)) return 'story';
+  return 'task';
+}
+
+// filtra(aree, f, io)
 // f: {
 //   persona: 'tutti'|'mie'|'nessuno'|accountId,   l'assegnatario
 //   creatore: 'tutti'|accountId,                    chi ha creato l'issue
 //   area: key|'',
 //   stati: { [chiaveStato]: boolean },              'new', 'indeterminate', 'done' o 'e:<etichetta>' per gli stati del team
 //   nascondiFatte: boolean,                         nasconde chi e' completato su Jira e non ha uno stato del team
+//   tipi: { task: boolean, bug: boolean },          con uno solo dei due si vedono solo quelli, dentro le loro funzionalita'
 //   q: string,
 // }
 // io: l'accountId di chi guarda
@@ -21,6 +30,10 @@ export function filtra(aree, f, io) {
   const chi = (x) => persona(x) && creatore(x);
   const chiave = (x) => x.chiaveStato || x.categoria;
   const stato = (x) => f.stati[chiave(x)] !== false && !(f.nascondiFatte && chiave(x) === 'done');
+  const tipi = f.tipi || { task: true, bug: true };
+  const tuttiITipi = tipi.task !== false && tipi.bug !== false;
+  // una funzionalita' passa il filtro per tipo solo quando non c'e' filtro: altrimenti si vede per i suoi task o bug
+  const tipo = (x) => (genere(x) === 'story' ? tuttiITipi : tipi[genere(x)] !== false);
 
   const risultato = [];
   for (const a of aree) {
@@ -29,11 +42,11 @@ export function filtra(aree, f, io) {
     const story = [];
     for (const s of a.story) {
       const libero = areaTrovata || (q && testo(s)); // la ricerca ha trovato il contenitore: si vede tutto quello che c'e' dentro
-      const ok = (x) => chi(x) && stato(x) && (libero || testo(x));
+      const ok = (x) => tipo(x) && chi(x) && stato(x) && (libero || testo(x));
       const task = s.task.filter(ok);
       const bug = s.bug.filter(ok);
       // la funzionalita' si vede da sola se passa lei stessa i filtri, anche senza task che li passano
-      const daSola = stato(s) && (libero || testo(s)) && chi(s);
+      const daSola = tipo(s) && stato(s) && (libero || testo(s)) && chi(s);
       if (task.length || bug.length || daSola) story.push({ ...s, task, bug });
     }
     if (story.length) risultato.push({ ...a, story });
